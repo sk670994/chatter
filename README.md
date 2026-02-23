@@ -17,6 +17,21 @@ Incremental build of a chat app with tool-calling support.
 - Wired client send flow to `POST /api/chat`
 - Added temporary `/api/chat` route handler stub for local end-to-end flow
 
+### PR-2 Scope (current)
+
+- Replaced `/api/chat` stub with real Gemini API integration
+- Added model fallback logic (`GEMINI_MODELS`, comma-separated)
+- Added in-memory conversation context for multi-turn `/api/chat` requests
+
+### Environment
+
+Create `.env.local`:
+
+```bash
+GEMINI_API_KEY=your_api_key_here
+GEMINI_MODELS=gemini-2.0-flash,gemini-1.5-flash
+```
+
 ### Getting Started
 
 Run the development server:
