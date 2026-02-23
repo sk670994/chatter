@@ -16,6 +16,7 @@ type ChatResponse = {
   conversationId: string;
   model: string;
   toolCallsUsed?: number;
+  attemptedModels?: string[];
 };
 
 const DEFAULT_MODEL = "gemini-2.0-flash";
@@ -73,7 +74,8 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
+        const errorPayload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(errorPayload.error || `Request failed with status ${response.status}`);
       }
 
       const data: ChatResponse = await response.json();
@@ -84,7 +86,13 @@ export default function Home() {
       }
 
       setMessages((current) => [...current, createMessage("assistant", data.reply || "(No reply)")]);
-      setStatus(data.toolCallsUsed ? `Ready - tool calls used: ${data.toolCallsUsed}` : "Ready");
+      if (data.attemptedModels && data.attemptedModels.length > 1) {
+        setStatus(`Ready - fallback used (${data.attemptedModels.join(" -> ")})`);
+      } else if (data.toolCallsUsed) {
+        setStatus(`Ready - tool calls used: ${data.toolCallsUsed}`);
+      } else {
+        setStatus("Ready");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected chat error";
       setMessages((current) => [
@@ -122,7 +130,7 @@ export default function Home() {
           </div>
         </header>
 
-        <section className="grid flex-1 gap-0 md:grid-cols-[1fr_280px]">
+        <section className="grid flex-1     gap-0 md:grid-cols-[1fr_280px]">
           <div className="flex min-h-0 flex-col">
             <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 md:px-6">
               {messages.length === 0 ? (
@@ -135,10 +143,10 @@ export default function Home() {
               {messages.map((message) => (
                 <article
                   key={message.id}
-                  className={`max-w-[85%] rounded-2xl border px-4 py-3 ${
+                  className={`max-w-full rounded-2xl border px-4 py-3 ${
                     message.role === "user"
-                      ? "ml-auto border-[var(--accent)] bg-[var(--accent)] text-white"
-                      : "border-[var(--line)] bg-white text-zinc-900"
+                      ? "ml-auto border-red-700 bg-red-700 text-white"
+                      : "border-blue-700 bg-blue-700 text-white"
                   }`}
                 >
                   <p className="mb-1 font-mono text-xs uppercase tracking-wide opacity-80">{message.role}</p>
@@ -170,8 +178,8 @@ export default function Home() {
               </div>
             </form>
           </div>
-
-          <aside className="border-t border-[var(--line)] bg-[var(--surface-strong)] p-4 text-sm md:border-t-0 md:border-l">
+              
+          <aside className="border-t border-[var(--line)] bg-[var(--surface-strong)] p-4 text-sm md:border-t-0 md:border-2">
             <h2 className="mb-3 font-semibold">Session</h2>
             <dl className="space-y-3">
               <div>
@@ -184,7 +192,7 @@ export default function Home() {
               </div>
               <div>
                 <dt className="font-mono text-xs uppercase text-zinc-600">Messages</dt>
-                <dd className="mt-1">{messages.length}</dd>
+                <dd className="m-1">{messages.length}</dd>
               </div>
             </dl>
           </aside>
