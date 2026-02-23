@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { clearConversationHistory, getConversationHistory } from "@/lib/server/historyStore";
+import { clearConversationHistory, getConversationHistory } from "@/lib/server/history/historyStore";
 
 type RouteContext = {
   params: Promise<{ conversationId: string }>;

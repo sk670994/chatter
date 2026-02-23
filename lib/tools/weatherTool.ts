@@ -41,7 +41,7 @@ const WEATHER_CODE_MAP: Record<number, string> = {
   99: "Thunderstorm with heavy hail",
 };
 
-export const getWeatherTool: ToolRuntime = {
+export const weatherTool: ToolRuntime = {
   declaration: {
     name: "get_weather",
     description:
