@@ -30,3 +30,7 @@ export function appendConversationTurns(
   conversationStore.set(conversationId, next);
   return [...next];
 }
+
+export function clearConversationHistory(conversationId: string): boolean {
+  return conversationStore.delete(conversationId);
+}

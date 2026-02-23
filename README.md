@@ -32,6 +32,14 @@ GEMINI_API_KEY=your_api_key_here
 GEMINI_MODELS=gemini-2.0-flash,gemini-1.5-flash
 ```
 
+### PR-3 Scope (current)
+
+- Added `GET /api/history/:conversationId` to restore conversation history
+- Added `DELETE /api/history/:conversationId` to clear conversation history
+- Wired frontend to auto-load history for saved `conversationId`
+- Wired "New Chat" to clear old history before starting a new conversation
+- Added auto-scroll to latest message for long replies
+
 ### Getting Started
 
 Run the development server:
