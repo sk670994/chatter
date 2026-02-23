@@ -1,5 +1,13 @@
 export type ConversationPart = {
-  text: string;
+  text?: string;
+  functionCall?: {
+    name: string;
+    args?: Record<string, unknown>;
+  };
+  functionResponse?: {
+    name: string;
+    response: Record<string, unknown>;
+  };
 };
 
 export type ConversationTurn = {
@@ -27,6 +35,15 @@ export function appendConversationTurns(
 ): ConversationTurn[] {
   const current = conversationStore.get(conversationId) ?? [];
   const next = trimHistory([...current, ...turns]);
+  conversationStore.set(conversationId, next);
+  return [...next];
+}
+
+export function setConversationHistory(
+  conversationId: string,
+  turns: ConversationTurn[],
+): ConversationTurn[] {
+  const next = trimHistory([...turns]);
   conversationStore.set(conversationId, next);
   return [...next];
 }
