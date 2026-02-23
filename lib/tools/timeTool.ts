@@ -9,7 +9,7 @@ type OpenMeteoTimeResponse = {
   };
 };
 
-export const timeInLocationTool: ToolRuntime = {
+export const timeTool: ToolRuntime = {
   declaration: {
     name: "time_in_location",
     description:

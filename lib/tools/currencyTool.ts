@@ -2,9 +2,17 @@ import { fetchJson } from "@/lib/tools/common";
 import type { ToolRuntime } from "@/lib/tools/types";
 
 type CurrencyResponse = {
+  success?: boolean;
+  result?: number;
   amount?: number;
   base?: string;
   date?: string;
+  rates?: Record<string, number>;
+};
+
+type OpenExchangeResponse = {
+  result?: string;
+  time_last_update_utc?: string;
   rates?: Record<string, number>;
 };
 
@@ -26,11 +34,11 @@ function parseAmount(value: unknown): number {
   return amount;
 }
 
-export const currencyConvertTool: ToolRuntime = {
+export const currencyTool: ToolRuntime = {
   declaration: {
     name: "currency_convert",
     description:
-      "Convert amount between currencies using live exchange rates (Frankfurter API).",
+      "Convert amount between currencies using live exchange rates (exchangerate.host API).",
     parameters: {
       type: "object",
       properties: {
@@ -47,13 +55,33 @@ export const currencyConvertTool: ToolRuntime = {
       const to = parseCurrencyCode(args.to, "to");
       const amount = parseAmount(args.amount);
 
-      const url =
-        `https://api.frankfurter.app/latest?amount=${encodeURIComponent(String(amount))}` +
-        `&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
-      const data = await fetchJson<CurrencyResponse>(url);
-      const convertedAmount = data.rates?.[to];
+      try {
+        const url = `https://api.exchangerate.host/convert?from=${encodeURIComponent(
+          from,
+        )}&to=${encodeURIComponent(to)}&amount=${encodeURIComponent(String(amount))}`;
+        const data = await fetchJson<CurrencyResponse>(url);
+        const convertedAmount =
+          typeof data.result === "number" ? data.result : data.rates?.[to];
 
-      if (typeof convertedAmount !== "number") {
+        if (typeof convertedAmount === "number") {
+          return {
+            ok: true,
+            from,
+            to,
+            amount,
+            convertedAmount,
+            date: data.date ?? "",
+            source: "exchangerate.host",
+          };
+        }
+      } catch {
+        // Try fallback provider below.
+      }
+
+      const fallbackUrl = `https://open.er-api.com/v6/latest/${encodeURIComponent(from)}`;
+      const fallbackData = await fetchJson<OpenExchangeResponse>(fallbackUrl);
+      const rate = fallbackData.rates?.[to];
+      if (typeof rate !== "number") {
         return {
           ok: false,
           error: "Currency conversion data unavailable for requested pair.",
@@ -65,8 +93,9 @@ export const currencyConvertTool: ToolRuntime = {
         from,
         to,
         amount,
-        convertedAmount,
-        date: data.date ?? "",
+        convertedAmount: amount * rate,
+        date: fallbackData.time_last_update_utc ?? "",
+        source: "open-er-api",
       };
     } catch (error) {
       return {

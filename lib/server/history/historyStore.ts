@@ -3,15 +3,20 @@ export type ConversationPart = {
   functionCall?: {
     name: string;
     args?: Record<string, unknown>;
+    thought_signature?: string;
+    thoughtSignature?: string;
   };
   functionResponse?: {
     name: string;
     response: Record<string, unknown>;
   };
+  thought_signature?: string;
 };
 
+export type ConversationRole = "user" | "assistant" | "model" | "tool";
+
 export type ConversationTurn = {
-  role: "user" | "model";
+  role: ConversationRole;
   parts: ConversationPart[];
 };
 
@@ -27,16 +32,6 @@ function trimHistory(history: ConversationTurn[]): ConversationTurn[] {
 
 export function getConversationHistory(conversationId: string): ConversationTurn[] {
   return [...(conversationStore.get(conversationId) ?? [])];
-}
-
-export function appendConversationTurns(
-  conversationId: string,
-  turns: ConversationTurn[],
-): ConversationTurn[] {
-  const current = conversationStore.get(conversationId) ?? [];
-  const next = trimHistory([...current, ...turns]);
-  conversationStore.set(conversationId, next);
-  return [...next];
 }
 
 export function setConversationHistory(
