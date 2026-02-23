@@ -40,6 +40,14 @@ GEMINI_MODELS=gemini-2.0-flash,gemini-1.5-flash
 - Wired "New Chat" to clear old history before starting a new conversation
 - Added auto-scroll to latest message for long replies
 
+### PR-4 Scope (current)
+
+- Added tool-calling orchestration loop in Gemini backend wrapper
+- Added tool registry and declaration plumbing
+- Implemented free/open tools: `get_weather`, `currency_convert`, `geocode_location`, `air_quality`, `time_in_location`
+- Added loop/time safeguards (`TOOL_LOOP_LIMIT`, tool timeout)
+- Persisted full conversation turns including function call/response parts
+
 ### Getting Started
 
 Run the development server:
