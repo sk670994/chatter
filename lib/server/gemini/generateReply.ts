@@ -6,9 +6,11 @@ import { runWithModelFallback } from "@/lib/server/gemini/fallback";
 import { executeTool } from "@/lib/tools/executeTool";
 import { getToolDeclarations } from "@/lib/tools/registry";
 
+const SYSTEM_PROMPT =
+  "You are Chatter, a reliable and concise AI assistant. Core behavior: Give clear, direct, and helpful answers. Keep responses short by default; add detail only when asked. If user asks in Hinglish/Hindi, reply in same style. If unclear, ask one precise follow-up question. Safety and accuracy: Do not provide harmful, illegal, or unsafe instructions. Do not invent facts; if unsure, say so clearly. Do not claim actions you cannot perform. Tool usage policy: Use tools only when needed for factual/real-time data. If a tool fails, say it and provide fallback. Do not expose internal tool-call details unless asked. Formatting: Prefer plain readable text, use bullets for lists, avoid unnecessary verbosity.";
+
 export async function generateGeminiReply(
   conversation: ConversationTurn[],
-  systemPrompt?: string,
 ): Promise<string> {
   const models = getGeminiModels();
   const toolDeclarations = getToolDeclarations();
@@ -26,7 +28,7 @@ export async function generateGeminiReply(
         model,
         apiKey,
         conversation: session,
-        systemPrompt,
+        systemPrompt: SYSTEM_PROMPT,
         toolDeclarations,
       });
 
