@@ -37,7 +37,8 @@ export async function POST(request: Request) {
   const contents = [...history, userTurn];
 
   try {
-    const rawReply = await generateGeminiReply(contents);
+    const systemPrompt = process.env.SYSTEM_PROMPT;
+    const rawReply = await generateGeminiReply(contents, systemPrompt);
     const reply = rawReply.trim() || "I could not generate a response. Please try again.";
 
     const assistantTurn: ConversationTurn = {
