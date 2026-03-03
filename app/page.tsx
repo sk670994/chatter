@@ -1,5 +1,6 @@
 "use client";
 
+
 import { FormEvent, UIEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type ChatRole = "user" | "assistant";
@@ -9,12 +10,6 @@ type ChatMessage = {
   role: ChatRole;
   text: string;
   createdAt: string;
-};
-
-type ChatResponse = {
-  reply: string;
-  conversationId: string;
-  model: string;
 };
 
 type ConversationTurn = {
@@ -29,6 +24,7 @@ type HistoryResponse = {
 
 const CONVERSATION_KEY = "chatter:conversationId";
 const AUTO_SCROLL_THRESHOLD = 80;
+const API_BASE = (process.env.NEXT_PUBLIC_BACKEND_URL ?? "").replace(/\/$/, "");
 const QUICK_PROMPTS = [
   "Give me today's top AI news in 5 bullets.",
   "What's the weather in New York right now?",
@@ -42,6 +38,10 @@ function createMessage(role: ChatRole, text: string): ChatMessage {
     text,
     createdAt: new Date().toISOString(),
   };
+}
+
+function apiUrl(path: string) {
+  return API_BASE ? `${API_BASE}${path}` : path;
 }
 
 export default function Home() {
@@ -96,7 +96,7 @@ export default function Home() {
 
     async function loadHistory() {
       try {
-        const response = await fetch(`/api/history/${encodeURIComponent(conversationId)}`);
+        const response = await fetch(apiUrl(`/api/history/${encodeURIComponent(conversationId)}`));
         if (!response.ok) {
           throw new Error(`History request failed with status ${response.status}`);
         }
@@ -149,42 +149,86 @@ export default function Home() {
     event.preventDefault();
 
     const trimmed = input.trim();
-    if (!trimmed || !conversationId || isSending) {
+    if (!trimmed || isSending) {
       return;
     }
 
+    const assistantId = crypto.randomUUID();
+
     setIsSending(true);
     setAutoScrollEnabled(true);
-    setStatus("Sending message...");
+    setStatus("Streaming reply...");
     setInput("");
-    setMessages((current) => [...current, createMessage("user", trimmed)]);
+    setMessages((current) => [
+      ...current,
+      createMessage("user", trimmed),
+      {
+        id: assistantId,
+        role: "assistant",
+        text: "",
+        createdAt: new Date().toISOString(),
+      },
+    ]);
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId, message: trimmed }),
+      await new Promise<void>((resolve, reject) => {
+        const url = apiUrl(`/api/chat/stream?prompt=${encodeURIComponent(trimmed)}`);
+        const source = new EventSource(url);
+        let settled = false;
+
+        const finish = () => {
+          if (!settled) {
+            settled = true;
+            source.close();
+          }
+        };
+
+        source.addEventListener("ready", () => {
+          setStatus("Streaming reply...");
+        });
+
+        source.addEventListener("token", (event) => {
+          const payload = JSON.parse((event as MessageEvent<string>).data) as { token?: string };
+          if (!payload.token) {
+            return;
+          }
+
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === assistantId
+                ? { ...message, text: `${message.text}${payload.token}` }
+                : message
+            )
+          );
+        });
+
+        source.addEventListener("done", () => {
+          finish();
+          resolve();
+        });
+
+        source.onerror = () => {
+          if (settled) {
+            return;
+          }
+          finish();
+          reject(new Error("SSE connection failed."));
+        };
       });
 
-      if (!response.ok) {
-        const errorPayload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(errorPayload.error || `Request failed with status ${response.status}`);
-      }
-
-      const data: ChatResponse = await response.json();
-      if (data.conversationId && data.conversationId !== conversationId) {
-        setConversationId(data.conversationId);
-        localStorage.setItem(CONVERSATION_KEY, data.conversationId);
-      }
-
-      setMessages((current) => [...current, createMessage("assistant", data.reply || "(No reply)")]);
       setStatus("Ready");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected chat error";
-      setMessages((current) => [
-        ...current,
-        createMessage("assistant", `I could not complete the request. ${message}`),
-      ]);
+      setMessages((current) =>
+        current.map((chatMessage) =>
+          chatMessage.id === assistantId
+            ? {
+                ...chatMessage,
+                text: chatMessage.text || `I could not complete the request. ${message}`,
+              }
+            : chatMessage
+        )
+      );
       setStatus("Request failed");
     } finally {
       setIsSending(false);
@@ -194,7 +238,7 @@ export default function Home() {
   async function resetConversation() {
     if (conversationId) {
       try {
-        await fetch(`/api/history/${encodeURIComponent(conversationId)}`, {
+        await fetch(apiUrl(`/api/history/${encodeURIComponent(conversationId)}`), {
           method: "DELETE",
         });
       } catch {
@@ -311,3 +355,4 @@ export default function Home() {
     </div>
   );
 }
+
