@@ -171,50 +171,78 @@ export default function Home() {
     ]);
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        const url = apiUrl(`/api/chat/stream?prompt=${encodeURIComponent(trimmed)}`);
-        const source = new EventSource(url);
-        let settled = false;
-
-        const finish = () => {
-          if (!settled) {
-            settled = true;
-            source.close();
-          }
-        };
-
-        source.addEventListener("ready", () => {
-          setStatus("Streaming reply...");
-        });
-
-        source.addEventListener("token", (event) => {
-          const payload = JSON.parse((event as MessageEvent<string>).data) as { token?: string };
-          if (!payload.token) {
-            return;
-          }
-
-          setMessages((current) =>
-            current.map((message) =>
-              message.id === assistantId
-                ? { ...message, text: `${message.text}${payload.token}` }
-                : message
-            )
-          );
-        });
-
-        source.addEventListener("done", () => {
-          finish();
-          resolve();
-        });
-
-        source.onerror = () => {
-          if (settled) {
-            return;
-          }
-          finish();
-          reject(new Error("SSE connection failed."));
-        };
+      const url = apiUrl(`/api/chat/stream?prompt=${encodeURIComponent(trimmed)}`);
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "text/event-stream",
+          "ngrok-skip-browser-warning": "1",
+        },
       });
+
+      if (!response.ok || !response.body) {
+        const text = await response.text().catch(() => "");
+        throw new Error(
+          `Stream request failed (${response.status}). ${text.slice(0, 120)}`
+        );
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let streamDone = false;
+
+      while (!streamDone) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+
+        for (const rawEvent of events) {
+          const lines = rawEvent.split("\n");
+          let eventName = "message";
+          const dataLines: string[] = [];
+
+          for (const line of lines) {
+            if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataLines.push(line.slice(5).trimStart());
+            }
+          }
+
+          const data = dataLines.join("\n");
+
+          if (eventName === "ready") {
+            setStatus("Streaming reply...");
+            continue;
+          }
+
+          if (eventName === "token") {
+            const payload = JSON.parse(data) as { token?: string };
+            if (!payload.token) {
+              continue;
+            }
+            setMessages((current) =>
+              current.map((message) =>
+                message.id === assistantId
+                  ? { ...message, text: `${message.text}${payload.token}` }
+                  : message
+              )
+            );
+            continue;
+          }
+
+          if (eventName === "done") {
+            streamDone = true;
+            break;
+          }
+        }
+      }
 
       setStatus("Ready");
     } catch (error) {
